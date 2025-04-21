@@ -16,7 +16,7 @@ medquad_path = "data/medquad.csv"
 chatbot_train_path = "data/train_data_chatbot.csv"
 chatbot_val_path = "data/validation_data_chatbot.csv"
 
-# Đọc dữ liệu
+# Đọc dữ liệu và loại bỏ các bản ghi có giá trị None
 medquad_df = pd.read_csv(medquad_path).dropna(subset=["question", "answer"])
 chatbot_train_df = pd.read_csv(chatbot_train_path).dropna(subset=["short_question", "short_answer"])
 chatbot_val_df = pd.read_csv(chatbot_val_path).dropna(subset=["short_question", "short_answer"])
@@ -50,8 +50,9 @@ tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 tokenizer.pad_token = tokenizer.eos_token  # GPT-2 không có pad token
 
 def tokenize(example):
+    # Kiểm tra nếu input hoặc output là None
     if example['input'] is None or example['output'] is None:
-        return tokenizer("")
+        return tokenizer("", truncation=True, padding="max_length", max_length=512)
     prompt = f"Question: {example['input']}\nAnswer: {example['output']}"
     return tokenizer(prompt, truncation=True, padding="max_length", max_length=512)
 
