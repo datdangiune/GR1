@@ -15,7 +15,7 @@ print("[1] Đang load model đã fine-tune...")
 model_path = "./gpt2-medical-model"
 tokenizer = GPT2Tokenizer.from_pretrained(model_path)
 model = GPT2LMHeadModel.from_pretrained(model_path)
-tokenizer.pad_token = tokenizer.eos_token
+tokenizer.pad_token = tokenizer.eos_token  # Đảm bảo sử dụng eos_token làm pad_token
 model.eval()
 
 print_time("[1] Load model", start_time)
@@ -40,10 +40,13 @@ predictions = []
 
 for _, row in eval_samples.iterrows():
     prompt = f"Question: {row['input']}\nAnswer:"
-    input_ids = tokenizer.encode(prompt, return_tensors='pt').to(model.device)
+    # Thêm attention_mask vào input_ids
+    input_ids = tokenizer.encode(prompt, return_tensors='pt', padding=True, truncation=True).to(model.device)
+    attention_mask = (input_ids != tokenizer.pad_token_id).type(input_ids.dtype)  # Tạo attention mask
 
     output_ids = model.generate(
         input_ids,
+        attention_mask=attention_mask,  # Thêm attention_mask vào generate
         max_length=100,
         num_return_sequences=1,
         do_sample=False
@@ -78,10 +81,12 @@ while True:
             break
 
         prompt = f"Question: {user_input}\nAnswer:"
-        input_ids = tokenizer.encode(prompt, return_tensors='pt').to(model.device)
+        input_ids = tokenizer.encode(prompt, return_tensors='pt', padding=True, truncation=True).to(model.device)
+        attention_mask = (input_ids != tokenizer.pad_token_id).type(input_ids.dtype)  # Tạo attention mask
 
         output_ids = model.generate(
             input_ids,
+            attention_mask=attention_mask,  # Thêm attention_mask vào generate
             max_length=150,
             num_return_sequences=1,
             do_sample=True,
