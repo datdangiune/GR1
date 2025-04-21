@@ -1,6 +1,7 @@
 import time
 import pandas as pd
-from datasets import Dataset, load_metric
+from datasets import Dataset
+import evaluate  # Thay thế load_metric bằng evaluate
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 
 def print_time(step_name, start_time):
@@ -31,8 +32,8 @@ df = df.rename(columns={"question": "input", "answer": "output"})
 eval_samples = df.sample(n=100, random_state=42)
 
 # Load metric
-bleu = load_metric("bleu")
-rouge = load_metric("rouge")
+bleu = evaluate.load("bleu")  # Sử dụng evaluate.load thay vì load_metric
+rouge = evaluate.load("rouge")
 
 references = []
 predictions = []
