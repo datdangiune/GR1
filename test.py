@@ -1,7 +1,6 @@
 import time
 import pandas as pd
-from datasets import Dataset
-import evaluate  # Thay thế load_metric bằng evaluate
+from datasets import Dataset, load_metric
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 
 def print_time(step_name, start_time):
@@ -15,7 +14,7 @@ print("[1] Đang load model đã fine-tune...")
 model_path = "./gpt2-medical-model"
 tokenizer = GPT2Tokenizer.from_pretrained(model_path)
 model = GPT2LMHeadModel.from_pretrained(model_path)
-tokenizer.pad_token = tokenizer.eos_token  # Đảm bảo sử dụng eos_token làm pad_token
+tokenizer.pad_token = tokenizer.eos_token
 model.eval()
 
 print_time("[1] Load model", start_time)
@@ -32,24 +31,33 @@ df = df.rename(columns={"question": "input", "answer": "output"})
 eval_samples = df.sample(n=100, random_state=42)
 
 # Load metric
-bleu = evaluate.load("bleu")  # Sử dụng evaluate.load thay vì load_metric
-rouge = evaluate.load("rouge")
+bleu = load_metric("bleu")
+rouge = load_metric("rouge")
 
 references = []
 predictions = []
 
+# Giới hạn độ dài đầu vào
+max_input_length = 512  # Giới hạn độ dài input
+max_output_length = 100  # Giới hạn độ dài output
+
 for _, row in eval_samples.iterrows():
     prompt = f"Question: {row['input']}\nAnswer:"
-    # Thêm attention_mask vào input_ids
-    input_ids = tokenizer.encode(prompt, return_tensors='pt', padding=True, truncation=True).to(model.device)
-    attention_mask = (input_ids != tokenizer.pad_token_id).type(input_ids.dtype)  # Tạo attention mask
+    input_ids = tokenizer.encode(prompt, return_tensors='pt').to(model.device)
+
+    # Giới hạn độ dài đầu vào nếu vượt quá
+    if input_ids.shape[1] > max_input_length:
+        input_ids = input_ids[:, :max_input_length]
 
     output_ids = model.generate(
         input_ids,
-        attention_mask=attention_mask,  # Thêm attention_mask vào generate
-        max_length=100,
+        max_length=max_output_length,
         num_return_sequences=1,
-        do_sample=False
+        do_sample=True,
+        temperature=0.7,
+        top_p=0.9,
+        top_k=50,
+        num_beams=5
     )
 
     generated = tokenizer.decode(output_ids[0], skip_special_tokens=True)
@@ -81,17 +89,21 @@ while True:
             break
 
         prompt = f"Question: {user_input}\nAnswer:"
-        input_ids = tokenizer.encode(prompt, return_tensors='pt', padding=True, truncation=True).to(model.device)
-        attention_mask = (input_ids != tokenizer.pad_token_id).type(input_ids.dtype)  # Tạo attention mask
+        input_ids = tokenizer.encode(prompt, return_tensors='pt').to(model.device)
+
+        # Giới hạn độ dài đầu vào nếu vượt quá
+        if input_ids.shape[1] > max_input_length:
+            input_ids = input_ids[:, :max_input_length]
 
         output_ids = model.generate(
             input_ids,
-            attention_mask=attention_mask,  # Thêm attention_mask vào generate
             max_length=150,
             num_return_sequences=1,
             do_sample=True,
             temperature=0.7,
-            top_p=0.9
+            top_p=0.9,
+            top_k=50,
+            num_beams=5
         )
 
         generated = tokenizer.decode(output_ids[0], skip_special_tokens=True)
