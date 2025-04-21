@@ -1,13 +1,7 @@
 import time
 import pandas as pd
 from datasets import Dataset
-from transformers import (
-    GPT2Tokenizer,
-    GPT2LMHeadModel,
-    Trainer,
-    TrainingArguments,
-    DataCollatorForLanguageModeling
-)
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, TrainingArguments, DataCollatorForLanguageModeling
 
 def print_time(step_name, start_time):
     elapsed = time.time() - start_time
@@ -17,13 +11,9 @@ def print_time(step_name, start_time):
 start_time = time.time()
 print("[1] Đang load dữ liệu...")
 
-medquad_path = "data/medquad.csv"
-chatbot_train_path = "data/train_data_chatbot.csv"
-chatbot_val_path = "data/validation_data_chatbot.csv"
-
-medquad_df = pd.read_csv(medquad_path).dropna(subset=["question", "answer"])
-chatbot_train_df = pd.read_csv(chatbot_train_path).dropna(subset=["short_question", "short_answer"])
-chatbot_val_df = pd.read_csv(chatbot_val_path).dropna(subset=["short_question", "short_answer"])
+medquad_df = pd.read_csv("data/medquad.csv").dropna(subset=["question", "answer"])
+chatbot_train_df = pd.read_csv("data/train_data_chatbot.csv").dropna(subset=["short_question", "short_answer"])
+chatbot_val_df = pd.read_csv("data/validation_data_chatbot.csv").dropna(subset=["short_question", "short_answer"])
 
 medquad_df = medquad_df.rename(columns={"question": "input", "answer": "output"})
 chatbot_train_df = chatbot_train_df.rename(columns={"short_question": "input", "short_answer": "output"})
@@ -48,23 +38,24 @@ start_time = time.time()
 print("[3] Tokenizing...")
 
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-tokenizer.pad_token = tokenizer.eos_token  # GPT-2 không có pad_token mặc định
+tokenizer.pad_token = tokenizer.eos_token  # GPT-2 không có pad token
 
-def tokenize(examples):
-    prompts = [f"Question: {inp}\nAnswer: {out}" for inp, out in zip(examples["input"], examples["output"])]
-    return tokenizer(prompts, truncation=True, padding="max_length", max_length=512)
+def tokenize(example):
+    if example['input'] is None or example['output'] is None:
+        return tokenizer("")
+    prompt = f"Question: {example['input']}\nAnswer: {example['output']}"
+    return tokenizer(prompt, truncation=True, padding="max_length", max_length=512)
 
-train_tokenized = train_ds.map(tokenize, batched=True)
-val_tokenized = val_ds.map(tokenize, batched=True)
+train_tokenized = train_ds.map(tokenize, batched=False)
+val_tokenized = val_ds.map(tokenize, batched=False)
 
 print_time("3] Tokenization", start_time)
 
-# [4] Huấn luyện mô hình GPT-2
+# [4] Fine-tune GPT-2
 start_time = time.time()
 print("[4] Huấn luyện mô hình GPT-2...")
 
 model = GPT2LMHeadModel.from_pretrained("gpt2")
-model.resize_token_embeddings(len(tokenizer))  # cập nhật tokenizer mới nếu có thêm pad_token
 
 training_args = TrainingArguments(
     output_dir="./gpt2-medical-model",
@@ -75,11 +66,6 @@ training_args = TrainingArguments(
     learning_rate=5e-5,
     weight_decay=0.01,
     logging_dir="./logs",
-    save_total_limit=2,
-    logging_steps=50,
-    evaluation_strategy="epoch",
-    save_strategy="epoch",
-    report_to="none",  # tránh warning nếu không dùng wandb hay tensorboard
 )
 
 data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
@@ -96,3 +82,25 @@ trainer = Trainer(
 trainer.train()
 
 print_time("4] Huấn luyện GPT-2", start_time)
+
+# [5] Lưu mô hình sau huấn luyện
+model.save_pretrained("output_model/")
+tokenizer.save_pretrained("output_model/")
+print("[5] Đã lưu mô hình vào thư mục 'output_model/'")
+
+# [6] Test model với một câu hỏi mẫu
+print("[6] Test câu hỏi mẫu:")
+sample_input = "What causes high blood pressure?"
+prompt = f"Question: {sample_input}\nAnswer:"
+inputs = tokenizer(prompt, return_tensors="pt")
+output = model.generate(
+    **inputs,
+    max_length=100,
+    do_sample=True,
+    top_k=50,
+    top_p=0.95,
+    temperature=0.9,
+    pad_token_id=tokenizer.eos_token_id
+)
+decoded = tokenizer.decode(output[0], skip_special_tokens=True)
+print(decoded)
