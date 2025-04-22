@@ -19,7 +19,7 @@ while True:
     formatted_input = "Patient: " + user_input + "\nDoctor:"
     response = chatbot(
         formatted_input,
-        max_length=150,
+        max_length=300,
         do_sample=True,
         top_p=0.9,
         temperature=0.7,
