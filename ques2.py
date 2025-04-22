@@ -10,16 +10,27 @@ def evaluate_bleu(predictions, references):
     return sum(bleu_scores) / len(bleu_scores)
 
 # Khởi tạo tokenizer và model GPT-2 đã huấn luyện
-model = GPT2LMHeadModel.from_pretrained("./gpt2-medical-model")
-tokenizer = GPT2Tokenizer.from_pretrained("./gpt2-medical-model")
+model = GPT2LMHeadModel.from_pretrained("./checkpoint-24612")
+tokenizer = GPT2Tokenizer.from_pretrained("./checkpoint-24612")
 tokenizer.pad_token = tokenizer.eos_token  # GPT-2 không có pad token
 
-# Kiểm thử dự đoán mẫu và đánh giá
+# Hàm dự đoán và đánh giá một mẫu
 def test_model(sample_input, sample_output):
     input_ids = tokenizer.encode(sample_input, return_tensors='pt')
 
-    # Dự đoán câu trả lời từ mô hình
-    output = model.generate(input_ids, max_length=100, num_return_sequences=1, pad_token_id=tokenizer.eos_token_id)
+    # Sinh câu trả lời với các tham số tránh lặp
+    output = model.generate(
+        input_ids,
+        max_length=150,
+        num_return_sequences=1,
+        pad_token_id=tokenizer.eos_token_id,
+        no_repeat_ngram_size=2,
+        repetition_penalty=1.5,
+        temperature=0.8,
+        top_k=50,
+        top_p=0.9,
+        do_sample=True  # Cho kết quả đa dạng hơn
+    )
     
     # Giải mã đầu ra
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
@@ -36,19 +47,30 @@ def test_model(sample_input, sample_output):
 # Kiểm thử với một mẫu từ tập huấn luyện
 sample_input = "What is Huntington's disease?"
 sample_output = "Huntington's disease is a genetic disorder that causes progressive loss of mental functions, including memory, judgment, and speech."
-
 test_model(sample_input, sample_output)
 
-# Cho phép người dùng nhập câu hỏi
+# Chatbox: cho phép người dùng nhập câu hỏi tự do
 while True:
     user_input = input("Nhập câu hỏi (hoặc 'exit' để thoát): ")
     if user_input.lower() == 'exit':
         break
     
-    # Dự đoán câu trả lời từ mô hình
     input_ids = tokenizer.encode(f"Question: {user_input}", return_tensors='pt')
-    output = model.generate(input_ids, max_length=100, num_return_sequences=1, pad_token_id=tokenizer.eos_token_id)
+
+    # Sinh câu trả lời từ mô hình với cấu hình tương tự
+    output = model.generate(
+        input_ids,
+        max_length=150,
+        num_return_sequences=1,
+        pad_token_id=tokenizer.eos_token_id,
+        no_repeat_ngram_size=2,
+        repetition_penalty=1.5,
+        temperature=0.8,
+        top_k=50,
+        top_p=0.9,
+        do_sample=True
+    )
     
-    # Đọc và in kết quả
+    # In kết quả
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     print(f"Câu trả lời: {generated_text}\n")

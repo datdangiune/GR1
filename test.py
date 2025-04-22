@@ -11,7 +11,7 @@ def print_time(step_name, start_time):
 start_time = time.time()
 print("[1] Đang load model đã fine-tune...")
 
-model_path = "./gpt2-medical-model"
+model_path = ".checkpoint-24612"
 tokenizer = GPT2Tokenizer.from_pretrained(model_path)
 model = GPT2LMHeadModel.from_pretrained(model_path)
 tokenizer.pad_token = tokenizer.eos_token

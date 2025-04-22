@@ -1,111 +1,120 @@
-import time
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, Trainer, TrainingArguments
+from sklearn.model_selection import train_test_split
 import pandas as pd
-from datasets import Dataset
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, TrainingArguments, DataCollatorForLanguageModeling
+from torch.utils.data import Dataset
+import matplotlib.pyplot as plt
+import os
+import time
 
-def print_time(step_name, start_time):
-    elapsed = time.time() - start_time
-    print(f"[{step_name}] Hoàn thành sau: {pd.to_timedelta(elapsed, unit='s')}")
+# Thiết bị
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# [1] Load dữ liệu
+# Tạo thư mục output
+os.makedirs('./output', exist_ok=True)
+
+# Load dataset
+df = pd.read_csv('data/ai-medical-chatbot.csv')
+
+# Tiền xử lý
+def preprocess_data(df):
+    questions = df['Patient'].dropna().tolist()
+    answers = df['Doctor'].dropna().tolist()
+    return [{'text': f"Question: {q.strip()} Answer: {a.strip()}"} for q, a in zip(questions, answers)]
+
+processed_data = preprocess_data(df)
+
+# Dataset class
+class MedicalChatDataset(Dataset):
+    def __init__(self, data, tokenizer, max_length=512):
+        self.data = data
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        encodings = self.tokenizer(
+            item['text'],
+            truncation=True,
+            padding='max_length',
+            max_length=self.max_length,
+            return_tensors='pt'
+        )
+        input_ids = encodings['input_ids'].squeeze()
+        attention_mask = encodings['attention_mask'].squeeze()
+
+        return {
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'labels': input_ids.clone()
+        }
+
+# Load model & tokenizer
+model_name = "microsoft/BioGPT"  # hoặc 'gpt2'
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+
+# Fix pad token nếu thiếu
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+    model.resize_token_embeddings(len(tokenizer))
+
+# Train/Val split
+train_data, eval_data = train_test_split(processed_data, test_size=0.1)
+train_dataset = MedicalChatDataset(train_data, tokenizer)
+eval_dataset = MedicalChatDataset(eval_data, tokenizer)
+
+# Logging thời gian
 start_time = time.time()
-print("[1] Đang load dữ liệu...")
+print("🚀 Training bắt đầu lúc:", time.strftime('%Y-%m-%d %H:%M:%S'))
 
-# Đọc dữ liệu và loại bỏ các bản ghi có giá trị None
-medquad_path = "data/medquad.csv"
-medquad_df = pd.read_csv(medquad_path).dropna(subset=["question", "answer"])
-
-# Chuẩn hóa column
-medquad_df = medquad_df.rename(columns={"question": "input", "answer": "output"})
-
-print_time("[1] Load dữ liệu", start_time)
-
-# [2] Chuẩn bị Dataset
-start_time = time.time()
-print("[2] Đang chuẩn bị Dataset...")
-
-train_ds = Dataset.from_pandas(medquad_df)
-
-print_time("[2] Chuẩn bị Dataset", start_time)
-
-# [3] Tokenizing
-start_time = time.time()
-print("[3] Tokenizing...")
-
-# Khởi tạo tokenizer GPT-2
-tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-tokenizer.pad_token = tokenizer.eos_token  # GPT-2 không có pad token
-
-def tokenize(example):
-    # Kiểm tra nếu input hoặc output là None
-    if example['input'] is None or example['output'] is None:
-        return tokenizer("", truncation=True, padding="max_length", max_length=512)
-    prompt = f"Question: {example['input']}\nAnswer: {example['output']}"
-    # Thêm padding và truncation để đảm bảo tất cả văn bản có cùng chiều dài
-    return tokenizer(prompt, truncation=True, padding="max_length", max_length=512)
-
-# Tokenize dữ liệu
-train_tokenized = train_ds.map(tokenize, batched=False)
-
-print_time("[3] Tokenization", start_time)
-
-# [4] Fine-tune GPT-2
-start_time = time.time()
-print("[4] Huấn luyện mô hình GPT-2...")
-
-# Khởi tạo mô hình GPT-2
-model = GPT2LMHeadModel.from_pretrained("gpt2")
+# Huấn luyện
 training_args = TrainingArguments(
-    output_dir="./gpt2-medical-model",
-    overwrite_output_dir=True,
+    output_dir='./results',
     num_train_epochs=3,
-    per_device_train_batch_size=2,
-    per_device_eval_batch_size=2,
-    learning_rate=5e-5,
+    per_device_train_batch_size=16,
+    per_device_eval_batch_size=16,
+    warmup_steps=500,
     weight_decay=0.01,
-    logging_dir="./logs",
+    logging_dir='./logs',
+    logging_steps=10,
+    save_strategy="no",
+    report_to="none"  # không dùng wandb
 )
 
-# Tạo collator cho việc huấn luyện
-data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
-
-# Khởi tạo Trainer
 trainer = Trainer(
-    model=model,
+    model=model.to(device),
     args=training_args,
-    train_dataset=train_tokenized,
-    tokenizer=tokenizer,
-    data_collator=data_collator,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset
 )
 
-# Huấn luyện mô hình
 trainer.train()
 
-print_time("[4] Huấn luyện GPT-2", start_time)
+end_time = time.time()
+print("✅ Training kết thúc lúc:", time.strftime('%Y-%m-%d %H:%M:%S'))
+print(f"🕒 Tổng thời gian huấn luyện: {end_time - start_time:.2f} giây")
 
-# [5] Lưu mô hình sau khi huấn luyện
-start_time = time.time()
-print("[5] Đang lưu mô hình...")
+# Lưu model
+model.save_pretrained('./trained_model')
+tokenizer.save_pretrained('./trained_model')
 
-# Lưu mô hình và tokenizer
-model.save_pretrained("./gpt2-medical-model")
-tokenizer.save_pretrained("./gpt2-medical-model")
+# Vẽ biểu đồ loss
+log_history = trainer.state.log_history
+log_df = pd.DataFrame(log_history)
+log_df.to_csv('./output/training_log.csv', index=False)
 
-print_time("[5] Lưu mô hình", start_time)
+# Lọc và vẽ loss
+loss_df = log_df[log_df['loss'].notnull()][['step', 'loss']]
 
-# [6] Kiểm thử dự đoán mẫu (Test Prediction)
-start_time = time.time()
-print("[6] Đang kiểm thử dự đoán mẫu...")
-
-# Chọn một mẫu từ tập huấn luyện để kiểm thử
-sample_input = train_tokenized[0]['input']
-input_ids = tokenizer.encode(sample_input, return_tensors='pt')
-
-# Dự đoán mẫu
-output = model.generate(input_ids, max_length=100, num_return_sequences=1)
-generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-
-print(f"Input: {sample_input}")
-print(f"Generated Output: {generated_text}")
-
-print_time("[6] Kiểm thử dự đoán mẫu", start_time)
+plt.figure(figsize=(10, 6))
+plt.plot(loss_df['step'], loss_df['loss'], marker='o')
+plt.title('Training Loss theo Step')
+plt.xlabel('Step')
+plt.ylabel('Loss')
+plt.grid(True)
+plt.savefig('./output/loss_plot.png')
+plt.show()
