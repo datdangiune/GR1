@@ -23,7 +23,7 @@ def preprocess_data(df):
     return [{'text': f"Question: {q.strip()} Answer: {a.strip()}"} for q, a in zip(questions, answers)]
 
 processed_data = preprocess_data(df)
-
+processed_data = processed_data[:5000]  # Giới hạn số lượng mẫu để tiết kiệm thời gian huấn luyện
 # Dataset class
 class MedicalChatDataset(Dataset):
     def __init__(self, data, tokenizer, max_length=512):
@@ -74,7 +74,7 @@ print("🚀 Training bắt đầu lúc:", time.strftime('%Y-%m-%d %H:%M:%S'))
 # Huấn luyện
 training_args = TrainingArguments(
     output_dir='./results',
-    num_train_epochs=3,
+    num_train_epochs=2,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
     warmup_steps=500,
