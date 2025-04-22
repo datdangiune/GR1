@@ -5,7 +5,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Đường dẫn tới model đã huấn luyện
-MODEL_PATH = "./trained_model"  # Thay đổi đường dẫn nếu cần
+MODEL_PATH = "./trained_model2"  # Thay đổi đường dẫn nếu cần
 
 # Load tokenizer và model
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)

@@ -82,7 +82,7 @@ training_args = TrainingArguments(
     logging_dir='./logs',
     logging_steps=10,
     evaluation_strategy="steps",  # Thêm dòng này
-    eval_steps=50,                # Đánh giá mỗi 50 step
+    eval_steps=200,                # Đánh giá mỗi 50 step
     save_strategy="no",
     report_to="none"
 )
