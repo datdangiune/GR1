@@ -11,7 +11,7 @@ import time
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Tạo thư mục output
-os.makedirs('./output', exist_ok=True)
+os.makedirs('./output2', exist_ok=True)
 
 # Load dataset
 df = pd.read_csv('data/ai-medical-chatbot.csv')
@@ -73,7 +73,7 @@ print("🚀 Training bắt đầu lúc:", time.strftime('%Y-%m-%d %H:%M:%S'))
 
 # Huấn luyện
 training_args = TrainingArguments(
-    output_dir='./results',
+    output_dir='./results2',
     num_train_epochs=3,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
@@ -102,13 +102,13 @@ print("✅ Training kết thúc lúc:", time.strftime('%Y-%m-%d %H:%M:%S'))
 print(f"🕒 Tổng thời gian huấn luyện: {end_time - start_time:.2f} giây")
 
 # Lưu model
-model.save_pretrained('./trained_model')
-tokenizer.save_pretrained('./trained_model')
+model.save_pretrained('./trained_model2')
+tokenizer.save_pretrained('./trained_model2')
 
 # Lưu log ra CSV
 log_history = trainer.state.log_history
 log_df = pd.DataFrame(log_history)
-log_df.to_csv('./output/training_log.csv', index=False)
+log_df.to_csv('./output2/training_log.csv', index=False)
 
 # Vẽ loss
 plt.figure(figsize=(12, 6))
@@ -127,6 +127,6 @@ plt.xlabel('Step')
 plt.ylabel('Loss')
 plt.legend()
 plt.grid(True)
-plt.savefig('./output/loss_plot.png')
+plt.savefig('./output2/loss_plot.png')
 plt.show()
 
