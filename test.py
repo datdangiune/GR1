@@ -12,12 +12,12 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(MODEL_PATH).to(device)
 
 # Hàm để hỏi mô hình
-def chat_with_model(question, max_new_tokens=100, temperature=0.7, top_p=0.95):
-    # Tạo prompt
+def chat_with_model(question, max_new_tokens=256, temperature=0.7, top_p=0.95):
+    # Tạo prompt với mẫu câu tự nhiên
     prompt = f"Question: {question.strip()} Answer:"
 
-    # Token hóa
-    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+    # Token hóa, với attention_mask rõ ràng
+    inputs = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True).to(device)
 
     # Sinh văn bản
     with torch.no_grad():
@@ -28,14 +28,20 @@ def chat_with_model(question, max_new_tokens=100, temperature=0.7, top_p=0.95):
             top_k=50,
             top_p=top_p,
             temperature=temperature,
-            pad_token_id=tokenizer.eos_token_id
+            pad_token_id=tokenizer.eos_token_id,
+            attention_mask=inputs.get("attention_mask")  # Đảm bảo attention mask được truyền
         )
 
     # Decode kết quả
     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Tách phần trả lời
+    # Tách phần trả lời sau từ "Answer:"
     answer = response.split("Answer:")[-1].strip()
+
+    # Đảm bảo câu trả lời kết thúc hợp lý (thêm dấu câu nếu thiếu)
+    if not answer.endswith(('.', '!', '?')):
+        answer += '.'
+
     return answer
 
 # Giao diện CLI đơn giản
