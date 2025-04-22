@@ -6,7 +6,6 @@ from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
 import os
 import time
-import random
 
 # Thiết bị
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -14,35 +13,18 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # Tạo thư mục output
 os.makedirs('./output2', exist_ok=True)
 
-# Load dataset
-df = pd.read_csv('data/ai-medical-chatbot.csv')
-
-# Hàm lọc các câu trả lời vô nghĩa
-def is_meaningful_answer(answer):
-    patterns = [
-        "consult a doctor",
-        "consult a physician",
-        "consult.*specialist",
-        "online consultation",
-        "sexologist online",
-        "for more info consult"
-    ]
-    answer = answer.lower()
-    return not any(p in answer for p in patterns)
+# Load dataset mới
+df = pd.read_csv('data/medquad.csv')  # Đảm bảo đường dẫn tới dataset đúng
 
 # Tiền xử lý
 def preprocess_data(df):
-    questions = df['Patient'].dropna().tolist()
-    answers = df['Doctor'].dropna().tolist()
-    data = [
-        {'text': f"Question: {q.strip()} Answer: {a.strip()}"}
-        for q, a in zip(questions, answers)
-        if is_meaningful_answer(a)
-    ]
-    random.shuffle(data)
-    return data[:15000]  # Tăng lên 20k mẫu meaningful
+    # Sử dụng cột 'question' và 'answer' để tạo dữ liệu cho mô hình
+    questions = df['question'].dropna().tolist()
+    answers = df['answer'].dropna().tolist()
+    return [{'text': f"Question: {q.strip()} Answer: {a.strip()}"} for q, a in zip(questions, answers)]
 
 processed_data = preprocess_data(df)
+processed_data = processed_data[:10000]  # Giới hạn số lượng mẫu để tiết kiệm thời gian huấn luyện
 
 # Dataset class
 class MedicalChatDataset(Dataset):
@@ -72,10 +54,10 @@ class MedicalChatDataset(Dataset):
             'labels': input_ids.clone()
         }
 
-# Load lại model đã huấn luyện
-model_path = "./trained_model2"
-tokenizer = AutoTokenizer.from_pretrained(model_path)
-model = AutoModelForCausalLM.from_pretrained(model_path)
+# Load model & tokenizer
+model_name = "microsoft/BioGPT"  # Hoặc 'gpt2'
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 
 # Fix pad token nếu thiếu
 if tokenizer.pad_token is None:
@@ -94,17 +76,16 @@ print("🚀 Training bắt đầu lúc:", time.strftime('%Y-%m-%d %H:%M:%S'))
 # Huấn luyện
 training_args = TrainingArguments(
     output_dir='./results2',
-    num_train_epochs=2,  # Ít epoch vì chỉ fine-tune tiếp
+    num_train_epochs=3,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
-    warmup_steps=200,
-    learning_rate=1e-4,
+    warmup_steps=500,
     weight_decay=0.01,
     logging_dir='./logs',
     logging_steps=10,
-    evaluation_strategy="steps",
-    eval_steps=200,
-    save_strategy="epoch",  # Có thể lưu theo từng epoch
+    evaluation_strategy="steps",  # Đánh giá sau mỗi số bước nhất định
+    eval_steps=200,               # Đánh giá mỗi 200 step
+    save_strategy="no",
     report_to="none"
 )
 
@@ -121,7 +102,7 @@ end_time = time.time()
 print("✅ Training kết thúc lúc:", time.strftime('%Y-%m-%d %H:%M:%S'))
 print(f"🕒 Tổng thời gian huấn luyện: {end_time - start_time:.2f} giây")
 
-# Lưu lại model fine-tune tiếp
+# Lưu model
 model.save_pretrained('./trained_model2')
 tokenizer.save_pretrained('./trained_model2')
 
@@ -132,10 +113,12 @@ log_df.to_csv('./output2/training_log.csv', index=False)
 
 # Vẽ loss
 plt.figure(figsize=(12, 6))
+# Training loss
 if 'loss' in log_df.columns:
     train_loss_df = log_df[log_df['loss'].notnull()][['step', 'loss']]
     plt.plot(train_loss_df['step'], train_loss_df['loss'], label='Training Loss', marker='o')
 
+# Eval loss
 if 'eval_loss' in log_df.columns:
     eval_loss_df = log_df[log_df['eval_loss'].notnull()][['step', 'eval_loss']]
     plt.plot(eval_loss_df['step'], eval_loss_df['eval_loss'], label='Validation Loss', marker='x')
