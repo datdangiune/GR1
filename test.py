@@ -1,115 +1,50 @@
-import time
-import pandas as pd
-from datasets import Dataset, load_metric
-from transformers import GPT2Tokenizer, GPT2LMHeadModel
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-def print_time(step_name, start_time):
-    elapsed = time.time() - start_time
-    print(f"[{step_name}] Hoàn thành sau: {pd.to_timedelta(elapsed, unit='s')}")
+# Thiết bị
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# [1] Load model đã fine-tune
-start_time = time.time()
-print("[1] Đang load model đã fine-tune...")
+# Đường dẫn tới model đã huấn luyện
+MODEL_PATH = "./results"
 
-model_path = ".checkpoint-24612"
-tokenizer = GPT2Tokenizer.from_pretrained(model_path)
-model = GPT2LMHeadModel.from_pretrained(model_path)
-tokenizer.pad_token = tokenizer.eos_token
-model.eval()
+# Load tokenizer và model
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+model = AutoModelForCausalLM.from_pretrained(MODEL_PATH).to(device)
 
-print_time("[1] Load model", start_time)
+# Hàm để hỏi mô hình
+def chat_with_model(question, max_new_tokens=100, temperature=0.7, top_p=0.95):
+    # Tạo prompt
+    prompt = f"Question: {question.strip()} Answer:"
 
-# [2] Đánh giá mô hình trên 100 mẫu từ medquad
-start_time = time.time()
-print("[2] Đang đánh giá mô hình...")
+    # Token hóa
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
-# Đọc lại dữ liệu
-df = pd.read_csv("data/medquad.csv").dropna(subset=["question", "answer"])
-df = df.rename(columns={"question": "input", "answer": "output"})
-
-# Lấy 100 mẫu test
-eval_samples = df.sample(n=100, random_state=42)
-
-# Load metric
-bleu = load_metric("bleu")
-rouge = load_metric("rouge")
-
-references = []
-predictions = []
-
-# Giới hạn độ dài đầu vào
-max_input_length = 512  # Giới hạn độ dài input
-max_output_length = 100  # Giới hạn độ dài output
-
-for _, row in eval_samples.iterrows():
-    prompt = f"Question: {row['input']}\nAnswer:"
-    input_ids = tokenizer.encode(prompt, return_tensors='pt').to(model.device)
-
-    # Giới hạn độ dài đầu vào nếu vượt quá
-    if input_ids.shape[1] > max_input_length:
-        input_ids = input_ids[:, :max_input_length]
-
-    output_ids = model.generate(
-        input_ids,
-        max_length=max_output_length,
-        num_return_sequences=1,
-        do_sample=True,
-        temperature=0.7,
-        top_p=0.9,
-        top_k=50,
-        num_beams=5
-    )
-
-    generated = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-    generated_answer = generated.split("Answer:")[-1].strip()
-
-    references.append([row["output"].split()])
-    predictions.append(generated_answer.split())
-
-# Tính điểm BLEU và ROUGE
-bleu_score = bleu.compute(predictions=predictions, references=references)
-rouge_score = rouge.compute(predictions=[" ".join(p) for p in predictions],
-                            references=[" ".join(r[0]) for r in references],
-                            rouge_types=["rouge1", "rouge2", "rougeL"])
-
-print("\n=== ĐÁNH GIÁ MÔ HÌNH ===")
-print("BLEU score:", bleu_score["bleu"])
-for k, v in rouge_score.items():
-    print(f"{k}: {v.mid.fmeasure:.4f}")
-
-print_time("[2] Đánh giá", start_time)
-
-# [3] Chat QnA
-print("\n=== CHAT HỎI ĐÁP VỚI MÔ HÌNH ===")
-while True:
-    try:
-        user_input = input("Bạn hỏi gì? (gõ 'exit' để thoát): ").strip()
-        if user_input.lower() in ["exit", "quit"]:
-            print("Tạm biệt 👋")
-            break
-
-        prompt = f"Question: {user_input}\nAnswer:"
-        input_ids = tokenizer.encode(prompt, return_tensors='pt').to(model.device)
-
-        # Giới hạn độ dài đầu vào nếu vượt quá
-        if input_ids.shape[1] > max_input_length:
-            input_ids = input_ids[:, :max_input_length]
-
-        output_ids = model.generate(
-            input_ids,
-            max_length=150,
-            num_return_sequences=1,
+    # Sinh văn bản
+    with torch.no_grad():
+        outputs = model.generate(
+            inputs["input_ids"],
+            max_new_tokens=max_new_tokens,
             do_sample=True,
-            temperature=0.7,
-            top_p=0.9,
             top_k=50,
-            num_beams=5
+            top_p=top_p,
+            temperature=temperature,
+            pad_token_id=tokenizer.eos_token_id
         )
 
-        generated = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        generated_answer = generated.split("Answer:")[-1].strip()
-        print(f"🧠 GPT trả lời: {generated_answer}\n")
+    # Decode kết quả
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    except KeyboardInterrupt:
-        print("\nĐã dừng.")
-        break
+    # Tách phần trả lời
+    answer = response.split("Answer:")[-1].strip()
+    return answer
+
+# Giao diện CLI đơn giản
+if __name__ == "__main__":
+    print("🤖 Chatbot Y Tế (gõ 'exit' để thoát)")
+    while True:
+        user_input = input("👤 Bạn: ")
+        if user_input.lower() in ["exit", "quit"]:
+            print("👋 Tạm biệt!")
+            break
+        reply = chat_with_model(user_input)
+        print("🤖 Bác sĩ AI:", reply)
