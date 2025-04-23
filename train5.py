@@ -154,7 +154,7 @@ training_args = TrainingArguments(
     weight_decay=0.01,
     warmup_ratio=0.1,
     logging_steps=50,
-    eval_strategy="steps",
+    eval_strategy="no",
     eval_steps=1000,
     save_strategy="steps", 
     save_steps=2000,
@@ -178,7 +178,7 @@ trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
-    eval_dataset=val_dataset,
+    #eval_dataset=val_dataset,
     compute_metrics=compute_metrics,
     callbacks=[MemorySaverCallback()]  # Tự động giải phóng bộ nhớ
 )
