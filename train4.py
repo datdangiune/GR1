@@ -16,10 +16,11 @@ from transformers import (
     Trainer,
     get_linear_schedule_with_warmup
 )
-from accelerate.state import AcceleratorState
+
 from accelerate import Accelerator
 import evaluate
 from evaluate import load as load_metric
+from accelerate.state import AcceleratorState
 
 
 # ========== CONFIGURATION ==========
