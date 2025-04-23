@@ -149,8 +149,9 @@ def setup_metrics(tokenizer):
 # ========== TRAINING SETUP ==========
 
 def initialize_training():
+    # Initialize Accelerator
     accelerator = Accelerator()
-    print(f"Using device: {accelerator.device}")
+    print(f"Device used by Accelerator: {accelerator.device}")
     print(f"Number of processes: {accelerator.num_processes}")
     
     # Load data
