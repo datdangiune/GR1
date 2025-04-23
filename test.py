@@ -8,8 +8,9 @@ class MedicalChatbot:
         self.accelerator = Accelerator()
         self.device = self.accelerator.device
         
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-        self.model = AutoModelForCausalLM.from_pretrained(model_path).to(self.device)
+        # Load local model/tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+        self.model = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True).to(self.device)
         self.model = self.accelerator.prepare(self.model)
         
     def generate_response(self, question, max_length=300):
