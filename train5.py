@@ -113,58 +113,25 @@ train_dataset = MedicalDataset(train_data, tokenizer)
 val_dataset = MedicalDataset(val_data, tokenizer)
 print(f"Train samples: {len(train_data)}, Val samples: {len(val_data)}")
 
-# Cell 10: Tính ROUGE score với xử lý từng batch nhỏ
-rouge = evaluate.load("rouge")
 
-def compute_metrics(eval_pred):
-    preds, labels = eval_pred
-    batch_size = 8  # Giảm batch size khi tính toán metrics
-    
-    # Xử lý từng batch nhỏ để tránh tràn bộ nhớ
-    rouge_results = {'rouge1': [], 'rouge2': [], 'rougeL': []}
-    
-    for i in range(0, len(preds), batch_size):
-        batch_preds = preds[i:i+batch_size]
-        batch_labels = labels[i:i+batch_size]
-        
-        batch_preds = np.where(batch_preds != -100, batch_preds, tokenizer.pad_token_id)
-        decoded_preds = tokenizer.batch_decode(batch_preds, skip_special_tokens=True)
-        decoded_labels = tokenizer.batch_decode(batch_labels, skip_special_tokens=True)
-        
-        batch_results = rouge.compute(
-            predictions=decoded_preds,
-            references=decoded_labels,
-            use_stemmer=True
-        )
-        
-        for k in rouge_results:
-            rouge_results[k].append(batch_results[k])
-    
-    # Tính trung bình kết quả
-    return {k: round(np.mean(v), 4) for k, v in rouge_results.items()}
-
-# Cell 11: Training Arguments tối ưu
 training_args = TrainingArguments(
     output_dir="./medical_chatbot",
     num_train_epochs=3,
-    per_device_train_batch_size=8,  # Có thể điều chỉnh tùy GPU
-    per_device_eval_batch_size=8,   # Batch size validation nhỏ hơn train
+    per_device_train_batch_size=8,
     gradient_accumulation_steps=2,
     learning_rate=3e-5,
     weight_decay=0.01,
     warmup_ratio=0.1,
     logging_steps=50,
-    eval_strategy="no",
-    eval_steps=1000,
+    evaluation_strategy="no",  # Tắt evaluation
     save_strategy="steps", 
     save_steps=2000,
     fp16=True,
-    gradient_checkpointing=True,  # Bật để tiết kiệm bộ nhớ
-    eval_accumulation_steps=2,   # Tích lũy khi evaluation
-    load_best_model_at_end=True,
+    gradient_checkpointing=True,
     report_to="none",
     seed=42
 )
+
 
 # Cell 12: Khởi tạo Trainer với xử lý bộ nhớ
 from transformers import TrainerCallback
@@ -178,10 +145,9 @@ trainer = Trainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
-    #eval_dataset=val_dataset,
-    compute_metrics=compute_metrics,
-    callbacks=[MemorySaverCallback()]  # Tự động giải phóng bộ nhớ
+    callbacks=[MemorySaverCallback()]
 )
+
 
 # Chuẩn bị cho GPU
 model, trainer.optimizer = accelerator.prepare(model, trainer.optimizer)
