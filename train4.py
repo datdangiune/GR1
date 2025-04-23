@@ -16,14 +16,13 @@ from transformers import (
     Trainer,
     get_linear_schedule_with_warmup
 )
-
 from accelerate import Accelerator
 import evaluate
 from evaluate import load as load_metric
-from accelerate.state import AcceleratorState
 
 
 # ========== CONFIGURATION ==========
+
 class Config:
     MODEL_NAME = "microsoft/BioGPT"
     DATASETS = {
@@ -42,7 +41,9 @@ class Config:
 
 os.makedirs(Config.OUTPUT_DIR, exist_ok=True)
 
+
 # ========== DATA PROCESSING ==========
+
 def clean_medical_text(text):
     """Advanced cleaning for medical text"""
     text = str(text).strip()
@@ -85,7 +86,9 @@ def load_and_preprocess_data():
     
     return processed_data
 
+
 # ========== DATASET CLASS ==========
+
 class MedicalDataset(Dataset):
     def __init__(self, data, tokenizer):
         self.data = data
@@ -109,8 +112,10 @@ class MedicalDataset(Dataset):
             "labels": encoding["input_ids"].squeeze().clone()
         }
 
+
 # ========== METRICS ==========
-def setup_metrics():
+
+def setup_metrics(tokenizer):
     rouge = evaluate.load("rouge")
     bleu = evaluate.load("bleu")
     
@@ -130,18 +135,16 @@ def setup_metrics():
         
         # Medical term accuracy (simplified)
         medical_terms = ["symptom", "treatment", "diagnosis"]
-        med_term_acc = np.mean([
-            any(term in pred.lower() for term in medical_terms)
-            for pred in decoded_preds
-        ])
+        med_term_acc = np.mean([any(term in pred.lower() for term in medical_terms) for pred in decoded_preds])
         
         return {
             "rougeL": round(rouge_results["rougeL"], 4),
             "medical_term_acc": round(med_term_acc, 4),
-            "length_ratio": round(np.mean([len(p)/len(l) for p,l in zip(decoded_preds, decoded_labels)]), 4)
+            "length_ratio": round(np.mean([len(p)/len(l) for p, l in zip(decoded_preds, decoded_labels)]), 4)
         }
     
     return compute_medical_metrics
+
 
 # ========== TRAINING SETUP ==========
 
@@ -185,7 +188,7 @@ def initialize_training():
 def train():
     # Initialize
     accelerator, model, tokenizer, train_dataset, eval_dataset = initialize_training()
-    compute_metrics = setup_metrics()
+    compute_metrics = setup_metrics(tokenizer)
     
     # Training arguments
     training_args = TrainingArguments(
@@ -260,7 +263,7 @@ def train():
     
     # Save metadata
     metadata = {
-        "training_time": (time.time() - start_time)/3600,
+        "training_time": (time.time() - start_time) / 3600,
         "config": vars(Config),
         "best_metrics": trainer.state.best_metric
     }
