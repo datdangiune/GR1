@@ -144,6 +144,7 @@ def setup_metrics():
     return compute_medical_metrics
 
 # ========== TRAINING SETUP ==========
+
 def initialize_training():
     accelerator = Accelerator()
     print(f"Using device: {accelerator.device}")
@@ -174,6 +175,7 @@ def initialize_training():
     return accelerator, model, tokenizer, train_dataset, eval_dataset
 
 # ========== MAIN TRAINING ==========
+
 def train():
     # Initialize
     accelerator, model, tokenizer, train_dataset, eval_dataset = initialize_training()
@@ -217,15 +219,13 @@ def train():
     )
     
     # Scheduler
-    state = AcceleratorState()
-    num_training_steps = len(train_dataset) * Config.NUM_EPOCHS // (Config.TRAIN_BATCH_SIZE * state.num_processes)
+    num_training_steps = len(train_dataset) * Config.NUM_EPOCHS // (Config.TRAIN_BATCH_SIZE * accelerator.num_processes)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=int(Config.WARMUP_RATIO * num_training_steps),
         num_training_steps=num_training_steps
     )
 
-    
     # Trainer
     trainer = Trainer(
         model=model,
@@ -262,6 +262,7 @@ def train():
         json.dump(metadata, f, indent=2)
     
     print(f"✅ Training completed in {metadata['training_time']:.2f} hours")
+
 
 if __name__ == "__main__":
     train()
