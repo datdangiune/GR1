@@ -39,7 +39,7 @@ class MedicalChatbot:
         return full_response.split("### Answer:")[-1].strip()
 
 if __name__ == "__main__":
-    chatbot = MedicalChatbot("./medical_chatbot_final")
+    chatbot = MedicalChatbot("medical_chatbot_final")
 
     test_questions = [
         "What are common symptoms of COVID-19?",
