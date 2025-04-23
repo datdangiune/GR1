@@ -39,7 +39,7 @@ def load_and_combine_datasets():
     medquad = medquad.sample(frac=0.7, random_state=42)  # 70% dữ liệu
     
     # Medical Chatbot dataset
-    chatbot = pd.read_csv('data/ ai-medical-chatbot.csv')[['Patient', 'Doctor']].dropna()
+    chatbot = pd.read_csv('data/ai-medical-chatbot.csv')[['Patient', 'Doctor']].dropna()
     chatbot.columns = ['question', 'answer']
     chatbot = chatbot[chatbot['answer'].str.len() > 10]  # Lọc câu trả lời quá ngắn
     chatbot = chatbot.sample(frac=0.3, random_state=42)  # 30% dữ liệu
