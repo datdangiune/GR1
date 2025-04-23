@@ -18,7 +18,8 @@ from transformers import (
 )
 from accelerate import Accelerator
 import evaluate
-from datasets import load_metric
+from evaluate import load as load_metric
+
 
 # ========== CONFIGURATION ==========
 class Config:
