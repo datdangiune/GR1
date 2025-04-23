@@ -146,18 +146,18 @@ def compute_metrics(eval_pred):
 # Cell 11: Training Arguments tối ưu
 training_args = TrainingArguments(
     output_dir="./medical_chatbot",
-    num_train_epochs=2,
-    per_device_train_batch_size=16,  # Có thể điều chỉnh tùy GPU
-    per_device_eval_batch_size=16,   # Batch size validation nhỏ hơn train
+    num_train_epochs=3,
+    per_device_train_batch_size=8,  # Có thể điều chỉnh tùy GPU
+    per_device_eval_batch_size=8,   # Batch size validation nhỏ hơn train
     gradient_accumulation_steps=2,
     learning_rate=3e-5,
     weight_decay=0.01,
     warmup_ratio=0.1,
     logging_steps=50,
     eval_strategy="steps",
-    eval_steps=500,
+    eval_steps=1000,
     save_strategy="steps", 
-    save_steps=1000,
+    save_steps=2000,
     fp16=True,
     gradient_checkpointing=True,  # Bật để tiết kiệm bộ nhớ
     eval_accumulation_steps=2,   # Tích lũy khi evaluation
