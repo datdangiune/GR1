@@ -1,63 +1,49 @@
+# test.py
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from accelerate import Accelerator
 
-# Sử dụng GPU nếu có
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Đường dẫn tới mô hình đã huấn luyện
-MODEL_PATH = "./trained_model2"
-
-# Load tokenizer và mô hình
-tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForCausalLM.from_pretrained(MODEL_PATH).to(device)
-
-# Prompt hướng dẫn chuyên biệt
-INSTRUCTION = (
-    "You are a helpful, concise, and professional medical assistant. "
-    "You specialize in understanding symptoms described by patients and providing possible causes or advice. "
-    "Respond clearly, avoid repetition, and never hallucinate information. "
-    "If the problem is serious, recommend the patient to visit a specialist. "
-    "Do not ask too many follow-up questions. Avoid unrelated medical terms.\n\n"
-)
-
-# Hàm để hỏi mô hình
-def chat_with_model(question, max_new_tokens=256, temperature=0.7, top_p=0.9):
-    prompt = f"{INSTRUCTION}Patient: {question.strip()}\nDoctor:"
-    inputs = tokenizer(prompt, return_tensors="pt").to(device)
-
-    with torch.no_grad():
-        output = model.generate(
-            inputs["input_ids"],
-            max_new_tokens=max_new_tokens,
-            do_sample=True,
-            top_k=50,
-            top_p=top_p,
-            temperature=temperature,
-            pad_token_id=tokenizer.eos_token_id,
-            attention_mask=inputs.get("attention_mask")
+class MedicalChatbot:
+    def __init__(self, model_path):
+        self.accelerator = Accelerator()
+        self.device = self.accelerator.device
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.model = AutoModelForCausalLM.from_pretrained(model_path).to(self.device)
+        self.model = self.accelerator.prepare(self.model)
+        
+    def generate_response(self, question, max_length=300):
+        prompt = f"""### Role: Medical AI Assistant
+### Safety: Do not provide diagnoses.
+### Question: {question.strip()}
+### Answer: IMPORTANT: Consult a healthcare professional."""
+        
+        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        
+        outputs = self.model.generate(
+            **inputs,
+            max_length=max_length,
+            temperature=0.7,
+            top_p=0.9,
+            repetition_penalty=2.0,
+            num_beams=3,
+            early_stopping=True
         )
+        
+        full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return full_response.split("### Answer:")[-1].strip()
 
-    response = tokenizer.decode(output[0], skip_special_tokens=True)
-
-    # Trích xuất phần trả lời sau "Doctor:"
-    if "Doctor:" in response:
-        answer = response.split("Doctor:")[-1].strip()
-    else:
-        answer = response.strip()
-
-    # Kết thúc bằng dấu chấm nếu chưa có
-    if not answer.endswith(('.', '!', '?')):
-        answer += '.'
-
-    return answer
-
-# Giao diện dòng lệnh
 if __name__ == "__main__":
-    print("🤖 Bác sĩ AI sẵn sàng hỗ trợ (gõ 'exit' để thoát)")
-    while True:
-        user_input = input("👤 Bạn: ")
-        if user_input.lower() in ["exit", "quit"]:
-            print("👋 Tạm biệt và chúc bạn sức khỏe!")
-            break
-        reply = chat_with_model(user_input)
-        print("🤖 Bác sĩ AI:", reply)
+    chatbot = MedicalChatbot("./medical_chatbot_optimized/final_model")
+    
+    test_questions = [
+        "What are common symptoms of COVID-19?",
+        "How to relieve migraine pain?",
+        "When should I worry about a headache?"
+    ]
+    
+    print("🧪 Medical Chatbot Evaluation:")
+    for question in test_questions:
+        response = chatbot.generate_response(question)
+        print(f"\n❓ {question}")
+        print(f"🤖 {response}")
