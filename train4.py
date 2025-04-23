@@ -215,12 +215,14 @@ def train():
     )
     
     # Scheduler
-    num_training_steps = len(train_dataset) * Config.NUM_EPOCHS // (Config.TRAIN_BATCH_SIZE * accelerator.num_processes)
+    state = AcceleratorState()
+    num_training_steps = len(train_dataset) * Config.NUM_EPOCHS // (Config.TRAIN_BATCH_SIZE * state.num_processes)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=int(Config.WARMUP_RATIO * num_training_steps),
         num_training_steps=num_training_steps
     )
+
     
     # Trainer
     trainer = Trainer(
