@@ -189,7 +189,7 @@ def train():
         warmup_ratio=Config.WARMUP_RATIO,
         logging_dir=f"{Config.OUTPUT_DIR}/logs",
         logging_steps=50,
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         eval_steps=200,
         save_strategy="steps",
         save_steps=500,
