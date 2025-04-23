@@ -172,7 +172,13 @@ def initialize_training():
     train_dataset = MedicalDataset(train_data, tokenizer)
     eval_dataset = MedicalDataset(eval_data, tokenizer)
     
+    # Prepare everything with Accelerator
+    model, tokenizer, train_dataset, eval_dataset = accelerator.prepare(
+        model, tokenizer, train_dataset, eval_dataset
+    )
+    
     return accelerator, model, tokenizer, train_dataset, eval_dataset
+
 
 # ========== MAIN TRAINING ==========
 
