@@ -1,54 +1,66 @@
-# test.py
+from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from accelerate import Accelerator
-from pathlib import Path  # ✅ dùng để chuyển đường dẫn tương đối sang tuyệt đối
+import os
 
-class MedicalChatbot:
-    def __init__(self, model_path):
-        self.accelerator = Accelerator()
-        self.device = self.accelerator.device
+# 1. Tải model và tokenizer
+checkpoint_dir = "./llama_finetuned"
+tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
+model = AutoModelForCausalLM.from_pretrained(
+    checkpoint_dir,
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
 
-        # ✅ Convert relative path to absolute path
-        model_path = Path(model_path).resolve()
+# 2. Cải tiến hàm chat
+def improved_chat_with_doctor(question):
+    # Sử dụng prompt đơn giản hơn
+    prompt = (
+        "You are a helpful medical assistant. Answer clearly and professionally.\n\n"
+        f"Patient: {question}\n"
+        "Doctor:"
+    )
+    
+    inputs = tokenizer(prompt, return_tensors="pt", return_attention_mask=True).to(model.device)
+    
+    # Tạo response với cấu hình chặt chẽ hơn
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=200,
+        temperature=0.5,  # Giảm nhiệt độ để ít sáng tạo hơn
+        top_p=0.9,
+        repetition_penalty=1.2,
+        no_repeat_ngram_size=3,
+        do_sample=True,
+        eos_token_id=tokenizer.eos_token_id,
+        pad_token_id=tokenizer.eos_token_id
+    )
+    
+    # Giải mã và làm sạch response
+    full_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    response = full_response.replace(prompt, "").strip()
+    
+    # Loại bỏ các phần không cần thiết
+    stop_phrases = ["Patient:", "Doctor:", "<|endoftext|>"]
+    for phrase in stop_phrases:
+        response = response.split(phrase)[0]
+    
+    return response
 
-        # ✅ Load tokenizer và model từ local folder
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-        self.model = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True).to(self.device)
-        self.model = self.accelerator.prepare(self.model)
+# 3. Test lại với các câu hỏi
+medical_questions = [
+    "What are the common symptoms of diabetes?",
+    "How can I prevent the flu?",
+    "What should I do if I have a severe headache?",
+    "Can you explain what hypertension is?",
+    "What are the first aid steps for a burn?"
+]
 
-    def generate_response(self, question, max_length=300):
-        prompt = f"""### Role: Medical AI Assistant
-### Safety: Do not provide diagnoses.
-### Question: {question.strip()}
-### Answer: IMPORTANT: Consult a healthcare professional."""
+print("\n" + "="*50)
+print("IMPROVED MEDICAL CHATBOT TEST")
+print("="*50 + "\n")
 
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-
-        outputs = self.model.generate(
-            **inputs,
-            max_length=max_length,
-            temperature=0.7,
-            top_p=0.9,
-            repetition_penalty=2.0,
-            num_beams=3,
-            early_stopping=True
-        )
-
-        full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return full_response.split("### Answer:")[-1].strip()
-
-if __name__ == "__main__":
-    chatbot = MedicalChatbot("medical_chatbot_final")
-
-    test_questions = [
-        "What are common symptoms of COVID-19?",
-        "How to relieve migraine pain?",
-        "When should I worry about a headache?"
-    ]
-
-    print("🧪 Medical Chatbot Evaluation:")
-    for question in test_questions:
-        response = chatbot.generate_response(question)
-        print(f"\n❓ {question}")
-        print(f"🤖 {response}")
+for i, question in enumerate(medical_questions, 1):
+    print(f"Question {i}: {question}")
+    response = improved_chat_with_doctor(question)
+    print(f"\nResponse:\n{response}\n")
+    print("-"*80 + "\n")
