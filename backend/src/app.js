@@ -1,17 +1,12 @@
 const express = require('express');
 require('dotenv').config();
 const sequelize = require('./database');
-const router = require('./routes/route');
-const adminRoutes = require('./routes/admin'); // Import admin routes
-const authRoutes = require('./routes/auth'); // Import auth routes
-const vetRoutes = require('./routes/vet'); // Import vet routes
 const cors = require('cors');
 const http = require("http");
 const { Server } = require("socket.io");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
-const { decrypt } = require('./util/encryption');
 const io = new Server(server, {
   cors: {
     origin: "*", // Cho phép tất cả frontend kết nối
@@ -36,10 +31,10 @@ io.on("connection", (socket) => {
       console.log("Client disconnected:", socket.id);
     });
   });
-app.use('/api/admin', adminRoutes); // Register admin routes under /api prefix
-app.use('/api/auth', authRoutes); // Register auth routes under /api prefix
-app.use('/api/v1/vet', vetRoutes); // Register vet routes under /api/v1/vet
-router(app);
+
+// Sử dụng routes/index.js cho toàn bộ API
+const routes = require('./routes');
+app.use('/', routes);
 
 app.get('/', (req, res) => {
     res.send('Welcome to the Pet Care API!');
